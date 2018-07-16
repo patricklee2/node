@@ -39,6 +39,18 @@ if (!startupCommand) {
     }
 }
 
+const PROCESS_JSON_FLAG = "/opt/startup/PROCESS_JSON_FLAG";
+fs.writeFileSync(PROCESS_JSON_FLAG, "FALSE");
+if (!startupCommand) {
+    var processJsonPath = "/home/site/wwwroot/process.json";
+    var json = fs.existsSync(processJsonPath) && JSON.parse(fs.readFileSync(processJsonPath, 'utf8'))
+    if (typeof json == 'object' && typeof json.script == 'string') {
+        console.log("Found scripts.start in process.json")
+        startupCommand = 'pm2 start ' + processJsonPath + ' --no-daemon --node-args="--inspect=0.0.0.0:' + process.env.APPSVC_TUNNEL_PORT + '"';
+        fs.writeFileSync(PROCESS_JSON_FLAG, "TRUE"); // set PROCESS_JSON_FLAG for remote debugging
+    }
+}
+
 var nodeFile = startupCommand;
 
 // No scripts.start; can we autodetect an app?
@@ -61,18 +73,21 @@ if (!startupCommand && !nodeFile) {
     nodeFile = DEFAULTAPP;
 }
 
-if (!startupCommand && nodeFile && fs.existsSync(nodeFile)) {
+if (nodeFile && fs.existsSync(nodeFile)) {
     if (process.env.APPSVC_REMOTE_DEBUGGING == "TRUE") {
-        if (process.env.APPSVC_REMOTE_DEBUGGING_BREAK == "TRUE") {
-            startupCommand = "node --inspect-brk=0.0.0.0:" + process.env.APPSVC_TUNNEL_PORT + " " + nodeFile;
-        } else {
-            startupCommand = "node --inspect=0.0.0.0:" + process.env.APPSVC_TUNNEL_PORT + " " + nodeFile;
-        }
-    } else {
-        // Run with pm2
-        startupCommand = "pm2 start " + nodeFile + " --no-daemon";
+        if (process.env.APPSVC_REMOTE_DEBUGGING_BREAK == "TRUE") {	
+            startupCommand = "node --inspect-brk=0.0.0.0:" + process.env.APPSVC_TUNNEL_PORT + " " + nodeFile;	
+        } else {	
+            startupCommand = "node --inspect=0.0.0.0:" + process.env.APPSVC_TUNNEL_PORT + " " + nodeFile;	
+        }	
+    } else {	
+        // Run with pm2	
+        startupCommand = "pm2 start " + nodeFile + " --no-daemon";	
     }
 }
+
+// if file does not exist, then assume it is a command
+// eg: /bin/bash -c /home/site/wwwroot/run.sh
 
 // Write to file
 fs.writeFileSync(CMDFILE, startupCommand);
